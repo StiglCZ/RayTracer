@@ -1,4 +1,3 @@
-#include <chrono>
 #include <CL/cl.h>
 #include <CL/opencl.hpp>
 #include <cmath>
@@ -9,8 +8,8 @@
 #include "program2.hh"
 
 const int
-    W = 800,
-    H = 600,
+    W = 1440,
+    H = 900,
     C = 3;
 
 const Vector3
@@ -62,12 +61,6 @@ CLData::CLData(int SceneLen, std::string FileName) {
     Succeeded = 0;
 }
 
-// For debugging
-long GetTime() {
-    using namespace std::chrono;
-    return duration_cast<milliseconds>(system_clock::now().time_since_epoch()).count();
-}
-
 Model LoadModel(std::string ModelFile) {
     std::string line;
     std::ifstream ifs(ModelFile);
@@ -102,9 +95,11 @@ void Export(u8* ImageData) {
 int main() {
     Model Scene = LoadModel("Untitled.obj");
     CLData ClData(Scene.size(), "Tracer.c");
+
     if(ClData.Succeeded)
         error(1, 0, "OpenCL failed with\n\tCode: %d\n\tCLCode: %d\n\tBuild Log:%s",
               ClData.Succeeded, ClData.Err, ClData.BuildLogs.c_str());
+
     u8* Buffer = new u8[W * H * C];
     float
         FOV = M_PI_2f,
@@ -112,10 +107,10 @@ int main() {
         StepY = FOV / W;
     ClData.Kernel.setArg(2, (Vector2){StepX, StepY});
     ClData.Kernel.setArg(3, (int)Scene.size());
+
     ClData.Queue.enqueueWriteBuffer(ClData.Input, CL_TRUE, 0, sizeof(Triangle) * Scene.size(), Scene.data());
     ClData.Queue.enqueueNDRangeKernel(ClData.Kernel, ClData.Offset, ClData.Global, ClData.Local);
     ClData.Queue.enqueueReadBuffer(ClData.Output, CL_TRUE, 0, W * H * C, Buffer);
-    
     Export(Buffer);
     delete[] Buffer;
 }
