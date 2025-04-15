@@ -5,11 +5,12 @@
 #include <fstream>
 #include <ios>
 #include <iostream>
+#include <string>
 #include "program2.hh"
 
 const int
-    W = 1440,
-    H = 900,
+    W = 4096,//1440,
+    H = 2048,//900,
     C = 3;
 
 const Vector3
@@ -48,16 +49,14 @@ CLData::CLData(int SceneLen, std::string FileName) {
     
     if(Program.build() != CL_BUILD_SUCCESS) {
         Succeeded = -3;
+        BuildLogs = Program.getBuildInfo<CL_PROGRAM_BUILD_LOG>()[0].second;
         return;
     }
-    
-    Input = cl::Buffer(Context, CL_MEM_READ_ONLY  | CL_MEM_HOST_WRITE_ONLY, sizeof(Triangle) * SceneLen);
-    Output = cl::Buffer(Context, CL_MEM_WRITE_ONLY |  CL_MEM_HOST_READ_ONLY, W * H * C);
-    Kernel = cl::Kernel(Program, "Main");
-    Kernel.setArg(0, Input);
-    Kernel.setArg(1, Output);
-    Queue = cl::CommandQueue(Context, Device);
     BuildLogs = Program.getBuildInfo<CL_PROGRAM_BUILD_LOG>()[0].second;
+    Input = cl::Buffer(Context, CL_MEM_READ_ONLY  | CL_MEM_HOST_WRITE_ONLY, sizeof(Triangle) * SceneLen);
+    Output = cl::Buffer(Context, CL_MEM_WRITE_ONLY |  CL_MEM_HOST_READ_ONLY, W * H * C * sizeof(u8));
+    Kernel = cl::Kernel(Program, "Main");
+    Queue = cl::CommandQueue(Context, Device);
     Succeeded = 0;
 }
 
@@ -86,9 +85,9 @@ void Export(u8* ImageData) {
     out << "P6\n"
         << std::to_string(W) << ' ' << std::to_string(H) << "\n"
         << "255\n";
-    
-    for(int i =0; i < W * H * C; i += C)
-        out << ImageData[i] << ImageData[i + 1] << ImageData[i + 2];
+    if(C == 3) out.write((char*)ImageData, W * H * C);
+    else for(int i =0; i < W * H; i++)
+             out.write((char*)ImageData + i * C, 3);
     out.close();
 }
 
@@ -97,17 +96,18 @@ int main() {
     CLData ClData(Scene.size(), "Tracer.c");
 
     if(ClData.Succeeded)
-        error(1, 0, "OpenCL failed with\n\tCode: %d\n\tCLCode: %d\n\tBuild Log:%s",
-              ClData.Succeeded, ClData.Err, ClData.BuildLogs.c_str());
+        error(1, 0, "OpenCL failed with\n\tCode: %d\n\tCLCode: %d\n\tBuild Log:%s\n",
+              ClData.Succeeded, ClData.Err, ClData.BuildLogs.c_str());    
+    float FOV = M_PI_2f,
+        Step = FOV / W;
+
+    ClData.Kernel.setArg(0, ClData.Input);
+    ClData.Kernel.setArg(1, ClData.Output);
+    ClData.Kernel.setArg(2, (Vector2){Step, Step});
+    ClData.Kernel.setArg(3, (int)Scene.size());
+    ClData.Kernel.setArg(4, (Vector3){0, -3, -10}); // Origin
 
     u8* Buffer = new u8[W * H * C];
-    float
-        FOV = M_PI_2f,
-        StepX = FOV / W,
-        StepY = FOV / W;
-    ClData.Kernel.setArg(2, (Vector2){StepX, StepY});
-    ClData.Kernel.setArg(3, (int)Scene.size());
-
     ClData.Queue.enqueueWriteBuffer(ClData.Input, CL_TRUE, 0, sizeof(Triangle) * Scene.size(), Scene.data());
     ClData.Queue.enqueueNDRangeKernel(ClData.Kernel, ClData.Offset, ClData.Global, ClData.Local);
     ClData.Queue.enqueueReadBuffer(ClData.Output, CL_TRUE, 0, W * H * C, Buffer);

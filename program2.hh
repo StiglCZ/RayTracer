@@ -52,7 +52,7 @@ struct CLData {
     cl::NDRange Global, Local, Offset;
     cl::Context Context;
     cl::Device Device;
-    std::string BuildLogs;
+    std::basic_string<char> BuildLogs;
     int Succeeded, ProgramSize;
     cl::Buffer Input, Output;
     CLData(int SceneLen, std::string SourceFile);
