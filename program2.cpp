@@ -9,8 +9,8 @@
 #include "program2.hh"
 
 const int
-    W = 4096,//1440,
-    H = 2048,//900,
+    W = 2560,
+    H = 1440,
     C = 3;
 
 const Vector3
@@ -85,6 +85,7 @@ void Export(u8* ImageData) {
     out << "P6\n"
         << std::to_string(W) << ' ' << std::to_string(H) << "\n"
         << "255\n";
+    
     if(C == 3) out.write((char*)ImageData, W * H * C);
     else for(int i =0; i < W * H; i++)
              out.write((char*)ImageData + i * C, 3);

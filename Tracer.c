@@ -1,6 +1,7 @@
 #ifndef __OPENCL_VERSION__
 #define __kernel
 #define __global
+#define __local
 #define get_global_id(x) x
 #define get_global_size(x) x
 #include <math.h>
@@ -23,9 +24,7 @@ struct __attribute__((packed)) Triangle { Vector3 t1, t2, t3; };
 
 Vector3 sub(Vector3 a, Vector3 b) { return (Vector3){ a.X - b.X, a.Y - b.Y, a.Z - b.Z, }; }
 float dot(Vector3 a, Vector3 b) { return a.X * b.X + a.Y * b.Y + a.Z * b.Z; }
-long Random(int seed) {
-    return (seed * 0x5DEECE66DL + 0xBL) & ((1L << 48) - 1);
-}
+long Random(int seed) { return (seed * 0x5DEECE66DL + 0xBL) & ((1L << 48) - 1); }
 float fRandom(int seed) {
     long r = Random(seed) % 0xFFFFFFFFFFFF;
     return (double)r / (double)0xFFFFFFFFFFFF;
@@ -39,9 +38,7 @@ Vector3 cross(Vector3 a, Vector3 b) {
     };
 }
 
-struct Color {
-    u16 r, g, b, a;
-};
+struct Color { u16 r, g, b, a; };
 struct Ray {
     Vector3 src, dir;
     Color c;
@@ -120,21 +117,22 @@ Vector3 Reflection(Ray r, Triangle t, Intersection i) {
         });
 }
 
-inline Color TraceLoop(Ray original, __global const Triangle *SceneInput, int Triangles) {
-    Intersection intersect = Trace(SceneInput, Triangles, original);
-    Ray new;
-    if(intersect.Triangle != -1) {
+inline Color TraceLoop(Ray ray, __global const Triangle *SceneInput, int Triangles) {
+    Intersection intersect;
+    while((intersect = Trace(SceneInput, Triangles, ray)).Triangle != -1) {
+        Ray new;
         new.src = (Vector3) {
-            intersect.Distance * original.dir.X + original.src.X,
-            intersect.Distance * original.dir.Y + original.src.Y,
-            intersect.Distance * original.dir.Z + original.src.Z,
+            intersect.Distance * ray.dir.X + ray.src.X,
+            intersect.Distance * ray.dir.Y + ray.src.Y,
+            intersect.Distance * ray.dir.Z + ray.src.Z,
         };
-        new.c = GetTriangleColor(intersect.Triangle, original.c);
-        new.dir = Reflection(original, SceneInput[intersect.Triangle], intersect);
+        new.c = GetTriangleColor(intersect.Triangle, ray.c);
+        new.dir = Reflection(ray, SceneInput[intersect.Triangle], intersect);
         new.Previous = intersect.Triangle;
-        return TraceLoop(new, SceneInput, Triangles);
+        
+        ray = new;
     }
-    return original.c;
+    return ray.c;
 }
 
 __kernel void Main(__global const Triangle *SceneInput,
@@ -161,14 +159,13 @@ __kernel void Main(__global const Triangle *SceneInput,
     Ray ray = {origin, RayDirection, {0, 0, 0, 0}, -1};
     Color c = TraceLoop(ray, SceneInput, Triangles);
     u8 r = 0, g = 0, b = 0;
+    
     if(c.a) {
         r = c.r / c.a;
         g = c.g / c.a;
         b = c.b / c.a;
     }
-    //r = c.a * 100;
-    //g = c.a * 100;
-    //b = c.a * 100;
+    
     ScreenOutput[(X + Y * W) * 3 + 0] = r;
     ScreenOutput[(X + Y * W) * 3 + 1] = g;
     ScreenOutput[(X + Y * W) * 3 + 2] = b;
