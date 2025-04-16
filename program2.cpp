@@ -9,8 +9,8 @@
 #include "program2.hh"
 
 const int
-    W = 2560,
-    H = 1440,
+    W = 3840,
+    H = 2160,
     C = 3;
 
 const Vector3

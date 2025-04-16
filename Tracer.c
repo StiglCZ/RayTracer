@@ -80,7 +80,7 @@ Intersection Trace(__global const Triangle *SceneInput, int Triangles, Ray ray) 
             cross2= cross(dir, edge2);
         
         float det = dot(edge1, cross2);
-        //if(det < 0) continue;
+        // if(det < 0) In theory, this should exist
         
         float
             u = dot(s, cross2) / det,
@@ -101,7 +101,7 @@ Color GetTriangleColor(int TriangleIndex, Color result) {
         result.r += fRandom(Random(3189 * TriangleIndex * 3 + 1)) * 200 + 50;
         result.g += fRandom(Random(2209 * TriangleIndex * 3 + 2)) * 200 + 50;
         result.b += fRandom(Random(3913 * TriangleIndex * 3 + 3)) * 200 + 50;
-        result.a += 1;
+        result.a ++;
     } return result;
 }
 
@@ -118,8 +118,9 @@ Vector3 Reflection(Ray r, Triangle t, Intersection i) {
 }
 
 inline Color TraceLoop(Ray ray, __global const Triangle *SceneInput, int Triangles) {
+    int Counter = 0;
     Intersection intersect;
-    while((intersect = Trace(SceneInput, Triangles, ray)).Triangle != -1) {
+    while(Counter++ < 20 && (intersect = Trace(SceneInput, Triangles, ray)).Triangle != -1) {
         Ray new;
         new.src = (Vector3) {
             intersect.Distance * ray.dir.X + ray.src.X,
@@ -144,7 +145,7 @@ __kernel void Main(__global const Triangle *SceneInput,
         Y = get_global_id(1),
         W = get_global_size(0),
         H = get_global_size(1);
-
+    
     Vector2 Angle = { Step.X * (X - W / 2.0f), Step.Y * (Y - H / 2.0f) };
     Vector3 RayDirection = {
         cos(Angle.Y) * sin(Angle.X),
@@ -152,8 +153,8 @@ __kernel void Main(__global const Triangle *SceneInput,
         cos(Angle.Y) * cos(Angle.X),
     };
     origin = (Vector3){
-        origin.X + X / 1000.0f,
-        origin.Y + Y / 1000.0f,
+        origin.X + Angle.X / 1000.0f,
+        origin.Y + Angle.Y / 1000.0f,
         origin.Z,
     };
     Ray ray = {origin, RayDirection, {0, 0, 0, 0}, -1};
